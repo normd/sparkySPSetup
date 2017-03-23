@@ -44,13 +44,23 @@ def printHelp():
     print('SYNOPSIS')
     print('  ./' + shortProgName + ' action [files]\n')
     print('MANDATORY PARAMETERS')
-    print('    action               -createsub subfile_in')
-    print('    action               -deletesub      ** currently unsupported in Sparkpost')
-    print('    action               -createdomains domfile_in bindfile_out ')
-    print('    action               -deletedomains domfile_in')
+    print('    action')
+    print('         -createsub subfile_in')
+    print('             subfile_in           text file, each line containing a subaccount name')
     print('')
-    print('    subfile_in           .csv format file, each line containing subaccount name')
-    print('    domfile_in           .csv format file, each line containing subaccount_id, [domain1, domain2, ..]')
+    print('         -deletesub               ** currently unsupported in Sparkpost')
+    print('')
+    print('         -viewsub subfile_in      View the subaccounts given in the input file')
+    print('')
+    print('         -createdomains domfile_in [bindfile_out]')
+    print('             domfile_in           .csv format file, each line containing subaccount_id, [domain1, domain2, ..]')
+    print('             bindfile_out         Optional output text file, containing DNS BIND entries for the domains created.')
+    print('')
+    print('         -deletedomains domfile_in')
+    print('')
+    print('         -viewdomains domfile_in [bindfile_out]')
+    print('                                  Check domains are set up to match the domfile_in and display them.')
+    print('                                  Optionally make an output text file, containing DNS BIND entries.')
     print('')
     print('USAGE')
     print('    The first step is to create the subaccounts, if you do not already have them set up.')
@@ -63,25 +73,7 @@ def printHelp():
     print('    An arbitrary number of domains may be given for each subaccount.')
     print('    Whitespace from the input files is ignored.')
     print('    The -createdomains option takes a second filename. BIND format DNS entries are written to it.')
-
-# Get all the current subaccounts, and return as a Python dict object
-def getAllSubAccounts(uri, apiKey):
-    #print('To', str(len(recipBatch)).rjust(5, ' '), 'recips: template "' + template + '" binding "' + binding + '" campaign "' + campaign + '" start_time ' + startTime + ' : ', end='', flush=True)
-
-    startT = time.time()
-    try:
-        path = uri+'/api/v1/subaccounts'
-        h = {'Authorization': apiKey, 'Accept': 'application/json'}
-        response = requests.get(path, timeout=T, headers=h)
-        endT = time.time()
-        if(response.status_code == 200):
-            return response.json()
-        else:
-            print('Error:', response.status_code, ':', pformat(response.json()), 'in', round(endT - startT, 3), 'seconds')
-            return None
-    except ConnectionError as err:
-        print('error code', err.status_code)
-        exit(1)
+    print('')
 
 # Create a named subaccount, returning Python object data
 def createSubAccount(uri, apiKey, subAccount):
@@ -104,6 +96,26 @@ def createSubAccount(uri, apiKey, subAccount):
     except ConnectionError as err:
         print('error code', err.status_code)
         return None
+
+# Get a specific numbered subaccount, returning Python data
+def getSubAccount(uri, apiKey, subID):
+    startT = time.time()
+    try:
+        path = uri + '/api/v1/subaccounts' + '/' + subID
+        h = {'Authorization': apiKey, 'Accept': 'application/json'}
+        response = requests.get(path, timeout=T, headers=h)
+        endT = time.time()
+        if (response.status_code == 200):
+            return response.json()
+
+        else:
+            print('Error:', response.status_code, ':', pformat(response.json()), 'in', round(endT - startT, 3),
+                  'seconds')
+            return None
+    except ConnectionError as err:
+        print('error code', err.status_code)
+        exit(1)
+
 
 # Attach a single sending domain to a numbered subaccount
 def createSendingDomain(uri, apiKey, subID, sd):
@@ -151,6 +163,25 @@ def deleteSendingDomain(uri, apiKey, subID, sd):
         print('error code', err.status_code)
         return None
 
+# Get a single sending domain to a numbered subaccount
+def getSendingDomain(uri, apiKey, sd):
+    startT = time.time()
+    try:
+        path = uri + '/api/v1/sending-domains' + '/' + sd
+        h = {'Authorization': apiKey, 'Accept': 'application/json'}
+
+        response = requests.get(path, timeout=T, headers=h)
+        endT = time.time()
+        if (response.status_code == 200):  # NOTE valid response is not 200
+            return response.json()
+        else:
+            print('Error:', response.status_code, ':', pformat(response.json()), 'in', round(endT - startT, 3),
+                  'seconds')
+            return None
+    except ConnectionError as err:
+        print('error code', err.status_code)
+        return None
+
 
 # -----------------------------------------------------------------------------------------
 # Main code
@@ -176,12 +207,7 @@ p = {
 # Check argument count and validate command-line input.  If a file cannot be opened, then Python will raise an exception
 if len(sys.argv) >= 3:
     cmd = str.lower(sys.argv[1])                                        # treat as case-insensitive
-    if(cmd == '-view'):
-        rq = getAllSubAccounts(p['uri'], p['apiKey'])
-        print(json.dumps(rq, indent=4))
-        exit(0)
-
-    elif(cmd == '-createsub'):
+    if(cmd == '-createsub'):
         print(cmd,':')
         try:
             # Get the list of subaccounts
@@ -200,13 +226,34 @@ if len(sys.argv) >= 3:
     elif(cmd == '-deletesub'):
         print('DeleteSub : sorry this is currently unsupported in SparkPost.')
 
+    elif(cmd == '-viewsub'):
+        print(cmd, ':')
+        try:
+            # Get the list of subaccounts
+            f = csv.reader(open(sys.argv[2]))
+            for r in f:
+                # ONLY column is the subaccount name
+                subID = r[0].strip()
+                res = getSubAccount(p['uri'], p['apiKey'], subID)
+                print(json.dumps(res))
+            exit(0)
+
+        except FileNotFoundError as Err:
+            print('Error opening file', Err.filename, ':', Err.strerror)
+            exit(1)
+
     elif(cmd == '-createdomains'):
         print(cmd,':')
         try:
             # Get the list of subaccounts
             f = csv.reader(open(sys.argv[2]))
-            dnsFile = open(sys.argv[3], 'w')
-            print('Writing DNS entries in', sys.argv[3])
+            if(len(sys.argv) >= 4):                                     # Param is optional
+                dnsFname = sys.argv[3]
+                dnsFile = open(dnsFname, 'w')
+                print('Writing DNS entries in', sys.argv[3])
+            else:
+                dnsFname = ''
+
             for r in f:
                 # First column is the subaccount ID, remaining columns are sending domain(s)
                 subID = r[0].strip()
@@ -215,16 +262,19 @@ if len(sys.argv) >= 3:
                 for sd in sendingDomains:
                     print('Create subaccount=', subID, 'domain=', sd, ': ',end='')
                     res = createSendingDomain(p['uri'], p['apiKey'], subID, sd)
-                    # Output data in format specifically for Kieran
+
+                    # Output data in format specifically for BIND file entries
                     if(res):
                         print(res['results']['message'])
-                        dk = res['results']['dkim']
-                        dnsFile.write(dk['selector'] + '.' + dk[
-                            'signing_domain'] + '.' + ' IN TXT "v=DKIM1\; h=sha256\; k=rsa\; s=email\; p=' + dk['public'] + '"' + '\n')
+                        if(dnsFname):
+                            dk = res['results']['dkim']
+                            dnsFile.write(dk['selector'] + '.' + dk[
+                                'signing_domain'] + '.' + ' IN TXT "v=DKIM1\; h=sha256\; k=rsa\; s=email\; p=' + dk['public'] + '"' + '\n')
                     else:
-                        print(json.dumps(res))
-                        dnsFile.write('*** Error processing '+sd)
-            dnsFile.close()
+                        if(dnsFname):
+                            dnsFile.write('*** Error processing '+sd)
+            if (dnsFname):
+                dnsFile.close()
             exit(0)
 
         except FileNotFoundError as Err:
@@ -248,6 +298,42 @@ if len(sys.argv) >= 3:
                         print('done')
                     else:
                         print()
+            exit(0)
+
+        except FileNotFoundError as Err:
+            print('Error opening file', Err.filename, ':', Err.strerror)
+            exit(1)
+
+    elif (cmd == '-viewdomains'):
+        print(cmd,':')
+        try:
+            # Get the list of subaccounts
+            f = csv.reader(open(sys.argv[2]))
+            if(len(sys.argv) >= 4):                                     # Param is optional
+                dnsFname = sys.argv[3]
+                dnsFile = open(dnsFname, 'w')
+                print('Writing DNS entries in', sys.argv[3])
+            else:
+                dnsFname = ''
+
+            for r in f:
+                # First column is the subaccount ID, remaining columns are sending domain(s)
+                subID = r[0].strip()
+                sendingDomains = [i.strip() for i in r[1:] ]            # strip whitespace
+                sendingDomains = list(filter(None, sendingDomains))     # strip blank file entries which may be caused e.g. by erroneous trailing commas
+                for sd in sendingDomains:
+                    print('Subaccount=', subID, 'domain=', sd,': ',end='')
+                    res = getSendingDomain(p['uri'], p['apiKey'], sd)
+                    if(res['results']['subaccount_id'] == int(subID) ):
+                        print('Domain subaccount set correctly')
+                        # Output data in format specifically for BIND file entries
+                        if(dnsFname):
+                            dk = res['results']['dkim']
+                            dnsFile.write(dk['selector'] + '.' + sd + '.' + ' IN TXT "v=DKIM1\; h=sha256\; k=rsa\; s=email\; p=' + dk['public'] + '"' + '\n')
+                    else:
+                        print('subaccount mismatch')
+            if (dnsFname):
+                dnsFile.close()
             exit(0)
 
         except FileNotFoundError as Err:

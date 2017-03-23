@@ -68,7 +68,7 @@ def printHelp():
     print('    numeric IDs in a second file used to create the domains, then use the -createdomain option.')
     print('')
     print('    This two-step approach is used, because you may already have existing subaccounts; and it\'s not')
-    print('    currently possible to delete subaccounts in SparkPost')
+    print('    currently possible to delete subaccounts in SparkPost.')
     print('')
     print('    An arbitrary number of domains may be given for each subaccount.')
     print('    Whitespace from the input files is ignored.')

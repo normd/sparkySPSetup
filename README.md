@@ -1,5 +1,5 @@
 # sparkySPSetup
-Simple command-line tool to set up Subaccounts and Sending Domains, e.g. for service providers or customers with separate internal departments.
+Command-line tool to set up Subaccounts and Sending Domains, e.g. for service providers or customers with separate internal departments.
 
 Command-line parameters specify
 - action to take
@@ -62,7 +62,7 @@ USAGE
     numeric IDs in a second file used to create the domains, then use the -createdomain option.
 
     This two-step approach is used, because you may already have existing subaccounts; and it's not
-    currently possible to delete subaccounts in SparkPost
+    currently possible to delete subaccounts in SparkPost.
 
     An arbitrary number of domains may be given for each subaccount.
     Whitespace from the input files is ignored.
@@ -90,10 +90,10 @@ Create the `domfile_in` file, for example `domains-list.csv`:
 2,sp02.1.junkdomain.com,sp02.2.junkdomain.com
 3,sp03.1.junkdomain.com,sp03.2.junkdomain.com
 4,sp04.1.junkdomain.com,sp04.2.junkdomain.com
-5,sp05.1.junkdomain.com,sp05.2.junkdomain.com,sp05.3.junkdomain.com,sp05.4.junkdomain.com`
+5,sp05.1.junkdomain.com,sp05.2.junkdomain.com,sp05.3.junkdomain.com,sp05.4.junkdomain.com
 ```
 
-Create those domains, writing DNS entries to a BIND file
+Create those domains, optionally writing DNS entries to a BIND file
 
 ```
 $ ./sparkySPSetup.py -createdomains domains-list.csv my_bind_file.txt

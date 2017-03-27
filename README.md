@@ -28,7 +28,10 @@ The `host`, attribute is only needed for SparkPost Enterprise service usage; you
 
 ## Usage
 ```
-$ ./sparkySPSetup.py
+$ ./sparkySPSetup.py 
+
+NAME
+   ./sparkySPSetup.py
    SparkPost Service Provider tool for creating subaccounts, and creating and deleting subaccount domains.
 
 SYNOPSIS
@@ -50,18 +53,29 @@ MANDATORY PARAMETERS
 
          -viewdomains domfile_in [bindfile_out]
                                   Check domains are set up to match the domfile_in and display them.
-             bindfile_out         Optional output text file, containing DNS BIND entries for the domains created.
+             bindfile_out         Optional output text file, containing DNS BIND entries for the sending domains.
+
+         -createtrack trkfile_in  Create subaccount-linked tracking domains
+             trkfile_in           .csv format file, each line containing subaccount_id, tracking_domain
+
+         -deletetrack trkfile_in
+
+         -viewtrack trkfile_in [cnamefile_out
+             cnamefile_out         Optional output text file, containing DNS BIND entries for the tracking domains.
 
 USAGE
     The first step is to create the subaccounts, if you do not already have them set up.
     The -createsub option is used for this.  The output is a list of numeric subaccount IDs.  Put these
-    numeric IDs in a second file used to create the domains, then use the -createdomain option.
+    numeric IDs in a further file used to create the domains, then use the -createdomain option.
 
     This two-step approach is used, because you may already have existing subaccounts; and it's not
     currently possible to delete subaccounts in SparkPost.
 
-    An arbitrary number of domains may be given for each subaccount, one per line.
-    Tracking domain may be specified in the third row, per subaccount.
+    If you want custom tracking-domains for each sending-domain, then three steps are used:
+      1. create subaccounts
+      2. create custom tracking-domains for those subaccounts
+      3. create sending-domains for those subaccounts
+
     Whitespace from the input files is ignored.
 ```
 
@@ -184,6 +198,51 @@ Delete subaccount= 5 domain= sp05.1.junkdomain.com : done
 Delete subaccount= 5 domain= sp05.2.junkdomain.com : done
 Delete subaccount= 5 domain= sp05.3.junkdomain.com : done
 Delete subaccount= 5 domain= sp05.4.junkdomain.com : done
+```
+
+Create tracking domains:
+```
+$ ./sparkySPSetup.py -createtrack tracking-domains.csv 
+-createtrack :
+Create tracking domain= trk.trans01.thetucks.com on subaccount 1 : {"results": {"domain": "trk.trans01.thetucks.com"}}
+Create tracking domain= trk.trans02.thetucks.com on subaccount 2 : {"results": {"domain": "trk.trans02.thetucks.com"}}
+Create tracking domain= trk.trans03.thetucks.com on subaccount 3 : {"results": {"domain": "trk.trans03.thetucks.com"}}
+Create tracking domain= trk.trans04.thetucks.com on subaccount 4 : {"results": {"domain": "trk.trans04.thetucks.com"}}
+Create tracking domain= trk.trans05.thetucks.com on subaccount 5 : {"results": {"domain": "trk.trans05.thetucks.com"}}
+```
+
+The tracking domains need to be validated before use.  This can be done with a single click from the web UI, so it's not currently automated.
+Once validated, View tracking domains, and capture into a CNAME file:
+```
+ ./sparkySPSetup.py -viewtrack tracking-domains.csv cname-file.txt
+-viewtrack :
+Writing DNS entries in cname-file.txt
+Subaccount= 1 tracking domain= trk.trans01.thetucks.com : {'results': {'default': False, 'domain': 'trk.trans01.thetucks.com', 'status': {'verified': True, 'cname_status': 'valid', 'compliance_status': 'valid'}}}
+Subaccount= 2 tracking domain= trk.trans02.thetucks.com : {'results': {'default': False, 'domain': 'trk.trans02.thetucks.com', 'status': {'verified': True, 'cname_status': 'valid', 'compliance_status': 'valid'}}}
+Subaccount= 3 tracking domain= trk.trans03.thetucks.com : {'results': {'default': False, 'domain': 'trk.trans03.thetucks.com', 'status': {'verified': True, 'cname_status': 'valid', 'compliance_status': 'valid'}}}
+Subaccount= 4 tracking domain= trk.trans04.thetucks.com : {'results': {'default': False, 'domain': 'trk.trans04.thetucks.com', 'status': {'verified': True, 'cname_status': 'valid', 'compliance_status': 'valid'}}}
+Subaccount= 5 tracking domain= trk.trans05.thetucks.com : {'results': {'default': False, 'domain': 'trk.trans05.thetucks.com', 'status': {'verified': True, 'cname_status': 'valid', 'compliance_status': 'valid'}}}
+```
+
+CNAME file output:
+```
+$ cat cname-file.txt 
+trk.trans01.thetucks.com CNAME spgo.io
+trk.trans02.thetucks.com CNAME spgo.io
+trk.trans03.thetucks.com CNAME spgo.io
+trk.trans04.thetucks.com CNAME spgo.io
+trk.trans05.thetucks.com CNAME spgo.io
+```
+
+Delete tracking domains:
+```
+$ ./sparkySPSetup.py -deletetrack tracking-domains.csv 
+-deletetrack :
+Delete tracking domain= trk.trans01.thetucks.com on subaccount 1 : done
+Delete tracking domain= trk.trans02.thetucks.com on subaccount 2 : done
+Delete tracking domain= trk.trans03.thetucks.com on subaccount 3 : done
+Delete tracking domain= trk.trans04.thetucks.com on subaccount 4 : done
+Delete tracking domain= trk.trans05.thetucks.com on subaccount 5 : done
 ```
 
 ## See Also

@@ -1,5 +1,6 @@
-1,trk.trans01.thetucks.com
-2,trk.trans02.thetucks.com
-3,trk.trans03.thetucks.com
-4,trk.trans04.thetucks.com
-5,trk.trans05.thetucks.com
+X-MSYS-SUBACCOUNT,tracking_domain,port,secure,default
+1,trk.trans01.thetucks.com,80,false
+2,trk.trans02.thetucks.com,443,true
+3,trk.trans03.thetucks.com,8080,false
+4,trk.trans04.thetucks.com,443,true
+5,trk.trans05.thetucks.com,443,true,false

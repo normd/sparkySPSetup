@@ -29,6 +29,14 @@ T = 20                  # Global timeout value for API requests
 
 import requests
 
+# file header formats
+domfileHdr = ['X-MSYS-SUBACCOUNT', 'domain', 'tracking_domain', 'signing_domain', 'private', 'public', 'selector', 'headers']
+trkfileHdr = ['X-MSYS-SUBACCOUNT', 'tracking_domain', 'port', 'secure', 'default']
+
+# Express a Python list object as a comma-separated string
+def stringify(l):
+    return ','.join([str(i) for i in l])
+
 # Strip initial and final quotes from strings, if present
 def stripQuotes(s):
     if s.startswith('"') and s.endswith('"'):
@@ -50,24 +58,28 @@ def printHelp():
     print()
     print('         -deletesub               ** currently unsupported in Sparkpost')
     print()
-    print('         -viewsub                 View the subaccounts')
+    print('         -viewsub subfile_in      View the subaccounts (actually shows all of them - not just those in file)')
     print()
     print('         -createdomains domfile_in')
-    print('             domfile_in           .csv format file, each line containing subaccount_id, domain[, tracking_domain]')
+    print('             domfile_in           .csv format file (may have header on line 1) of format:')
+    print('                                  '+stringify(domfileHdr) )
+    print('                                      tracking_domain onwards are optional parameters.')
     print()
     print('         -deletedomains domfile_in')
     print()
     print('         -viewdomains domfile_in [bindfile_out]')
     print('                                  Check domains are set up to match the domfile_in and display them.')
-    print('             bindfile_out         Optional output text file, containing DNS BIND entries for the sending domains.')
+    print('             bindfile_out         Optional output file, will be written with DNS BIND entries for the sending domains.')
     print()
     print('         -createtrack trkfile_in  Create subaccount-linked tracking domains')
-    print('             trkfile_in           .csv format file, each line containing subaccount_id, tracking_domain')
+    print('             trkfile_in           .csv format file (may have header on line 1) of format:')
+    print('                                  '+stringify(trkfileHdr) )
+    print('                                      port, secure (true/false) and default (true/false) are optional parameters.')
     print()
     print('         -deletetrack trkfile_in')
     print()
-    print('         -viewtrack trkfile_in [cnamefile_out')
-    print('             cnamefile_out         Optional output text file, containing DNS BIND entries for the tracking domains.')
+    print('         -viewtrack trkfile_in [cnamefile_out]')
+    print('             cnamefile_out        Optional output file, will be written with DNS BIND entries for the tracking domains.')
     print()
     print('USAGE')
     print('    The first step is to create the subaccounts, if you do not already have them set up.')
@@ -140,17 +152,36 @@ def getAllSubAccounts(uri, apiKey):
 # -----------------------------------------------------------------------------------------
 
 # Attach a single sending domain to a numbered subaccount.  Returns the JSON stanza if successful, None if error occurs.
-# Now takes tracking-domain param, which may be set to '' if not required.
-def createSendingDomain(uri, apiKey, subID, sd, td):
+#   takes variable parameters -
+#       mandatory:  X-MSYS-SUBACCOUNT, domain
+#       optional:   tracking_domain
+#                   private,public,selector
+#                       optional signing_domain,headers
+#
+def createSendingDomain(uri, apiKey, **kwargs):
     try:
         path = uri + '/api/v1/sending-domains'
-        h = {'Authorization': apiKey, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-MSYS-SUBACCOUNT': subID}
-        d = {
-            'domain': sd,
-            'generate_dkim': True,
-        }
-        if td:                                      # Add Tracking Domain attribute only if param is non-blank
-            d['tracking_domain'] = td
+        h = {'Authorization': apiKey, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-MSYS-SUBACCOUNT': kwargs.get('X-MSYS-SUBACCOUNT')}
+        d = {'domain': kwargs.get('domain')}
+
+        if 'tracking_domain' in kwargs:                 # Add Tracking Domain attribute only if param is non-blank
+            d['tracking_domain'] = kwargs.get('tracking_domain')
+
+        if 'private' in kwargs:
+            # We have a predefined dkim key pair and selector (mandatory parts)
+            d['generate_dkim'] =False
+            d['dkim'] = {
+                'private': kwargs.get('private'),
+                'public': kwargs.get('public'),
+                'selector': kwargs.get('selector')
+            }
+            # Now handle the optional parts
+            if 'signing_domain' in kwargs:
+                d['dkim']['signing_domain'] = kwargs.get('signing_domain')
+            if 'headers' in kwargs:
+                d['dkim']['headers'] = kwargs.get('headers')
+        else:
+            d['generate_dkim'] = True
 
         response = requests.post(path, timeout=T, headers=h, data=json.dumps(d) )
         if response.status_code == 200:
@@ -163,13 +194,13 @@ def createSendingDomain(uri, apiKey, subID, sd, td):
         return None
 
 # Delete a single sending domain to a numbered subaccount.  Returns True if successful, None if error occurs
-def deleteSendingDomain(uri, apiKey, subID, sd):
+def deleteSendingDomain(uri, apiKey, **kwargs):
     try:
-        path = uri + '/api/v1/sending-domains' + '/' + sd
-        h = {'Authorization': apiKey, 'Accept': 'application/json', 'X-MSYS-SUBACCOUNT': subID}
+        path = uri + '/api/v1/sending-domains' + '/' + kwargs.get('domain')
+        h = {'Authorization': apiKey, 'Accept': 'application/json', 'X-MSYS-SUBACCOUNT': kwargs.get('X-MSYS-SUBACCOUNT')}
 
         response = requests.delete(path, timeout=T, headers=h)
-        if response.status_code == 204:             # NOTE valid response is not 200
+        if response.status_code == 204:             # NOTE valid response is 204, not 200
             return True
         else:
             print('Error:', response.status_code, ':', response.text)
@@ -179,13 +210,13 @@ def deleteSendingDomain(uri, apiKey, subID, sd):
         return None
 
 # Get a single sending domain, returning the JSON stanza if domain is found, None if error occurs
-def getSendingDomain(uri, apiKey, sd):
+def getSendingDomain(uri, apiKey, **kwargs):
     try:
-        path = uri + '/api/v1/sending-domains' + '/' + sd
-        h = {'Authorization': apiKey, 'Accept': 'application/json'}
+        path = uri + '/api/v1/sending-domains' + '/' + kwargs.get('domain')
+        h = {'Authorization': apiKey, 'Accept': 'application/json', 'X-MSYS-SUBACCOUNT': kwargs.get('X-MSYS-SUBACCOUNT')}
 
         response = requests.get(path, timeout=T, headers=h)
-        if (response.status_code == 200):  # NOTE valid response is not 200
+        if (response.status_code == 200):
             return response.json()
         else:
             print('Error:', response.status_code, ':', response.text)
@@ -197,10 +228,10 @@ def getSendingDomain(uri, apiKey, sd):
 # -----------------------------------------------------------------------------------------
 
 # Get a Tracking Domain
-def getTrackingDomain(uri, apiKey, subID, td):
+def getTrackingDomain(uri, apiKey, **kwargs):
     try:
-        path = uri + '/api/v1/tracking-domains' + '/' + td
-        h = {'Authorization': apiKey, 'Accept': 'application/json', 'X-MSYS-SUBACCOUNT': subID}
+        path = uri + '/api/v1/tracking-domains' + '/' + kwargs.get('tracking_domain')
+        h = {'Authorization': apiKey, 'Accept': 'application/json', 'X-MSYS-SUBACCOUNT': kwargs.get('X-MSYS-SUBACCOUNT')}
 
         response = requests.get(path, timeout=T, headers=h)
         if (response.status_code == 200):  # NOTE valid response is not 200
@@ -213,14 +244,20 @@ def getTrackingDomain(uri, apiKey, subID, td):
         return None
 
 # Create a Tracking Domain.  Currently defaults to port 80 (http) access.  TODO add https access
-def createTrackingDomain(uri, apiKey, subID, td):
+def createTrackingDomain(uri, apiKey, **kwargs):
     try:
         path = uri + '/api/v1/tracking-domains'
-        h = {'Authorization': apiKey, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-MSYS-SUBACCOUNT': subID}
-        d = {
-            'domain': td,
-            'port': 80
-        }
+        h = {'Authorization': apiKey, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-MSYS-SUBACCOUNT': kwargs.get('X-MSYS-SUBACCOUNT')}
+        d = {'domain': kwargs.get('tracking_domain')}
+
+        # add optional parameters.  Note care needed in converting string to bool
+        if 'port' in kwargs:
+            d['port'] = int(kwargs.get('port'))
+        if 'secure' in kwargs:
+            d['secure'] = kwargs.get('secure').lower() in ('true',1)
+        if 'default' in kwargs:
+            d['default'] = kwargs.get('default').lower() in ('true',1)
+
         response = requests.post(path, timeout=T, headers=h, data=json.dumps(d))
         if (response.status_code == 200):  # NOTE valid response is not 200
             return response.json()
@@ -232,10 +269,10 @@ def createTrackingDomain(uri, apiKey, subID, td):
         return None
 
 # Delete a Tracking Domain
-def deleteTrackingDomain(uri, apiKey, subID, td):
+def deleteTrackingDomain(uri, apiKey, **kwargs):
     try:
-        path = uri + '/api/v1/tracking-domains' + '/' + td
-        h = {'Authorization': apiKey, 'Accept': 'application/json', 'X-MSYS-SUBACCOUNT': subID}
+        path = uri + '/api/v1/tracking-domains' + '/' + kwargs.get('tracking_domain')
+        h = {'Authorization': apiKey, 'Accept': 'application/json', 'X-MSYS-SUBACCOUNT': kwargs.get('X-MSYS-SUBACCOUNT')}
 
         response = requests.delete(path, timeout=T, headers=h)
         if response.status_code == 204:             # NOTE valid response is not 200
@@ -246,7 +283,6 @@ def deleteTrackingDomain(uri, apiKey, subID, td):
     except ConnectionError as err:
         print('error code', err.status_code)
         return None
-
 
 # -----------------------------------------------------------------------------------------
 # Main code
@@ -262,7 +298,7 @@ try:
 except:
     uri = 'https://api.sparkpost.com'
 
-# After validation, tore those parameters neatly in a dict structure
+# After validation, store those parameters neatly in a dict structure
 p = {
     'apiKey': stripQuotes(config['SparkPost']['Authorization']),
     'uri': uri
@@ -270,187 +306,161 @@ p = {
 
 # Get the command, and file name from the command-line
 # Check argument count and validate command-line input.  If a file cannot be opened, then Python will raise an exception
+cmd=''
 if len(sys.argv) >= 2:
     cmd = str.lower(sys.argv[1])                                        # treat as case-insensitive
-    if cmd == '-createsub':
-        print(cmd,':')
-        try:
-            # Get the list of subaccounts
-            f = csv.reader(open(sys.argv[2]))
-            for r in f:
-                # ONLY column is the subaccount name
-                subAccountName = r[0].strip()
-                res = createSubAccount(p['uri'], p['apiKey'], subAccountName)
-                print(json.dumps(res))
-            exit(0)
+    print(cmd, ':')
 
-        except FileNotFoundError as Err:
-            print('Error opening file', Err.filename, ':', Err.strerror)
-            exit(1)
+if len(sys.argv) >= 3:
+    try:
+        f = csv.reader(open(sys.argv[2]))                               # Get the input data
+    except FileNotFoundError as Err:
+        print('Error opening file', Err.filename, ':', Err.strerror)
+        exit(1)
 
-    elif(cmd == '-deletesub'):
-        print('DeleteSub : sorry this is currently unsupported in SparkPost.')
+dnsFname = ''
+if len(sys.argv) >= 4:                                                  # Param is optional
+    dnsFname = sys.argv[3]
+    try:
+        dnsFile = open(dnsFname, 'w')
+        print('Writing DNS entries in', dnsFname)
+    except PermissionError as Err:
+        print('Error opening file for writing', Err.filename, ':', Err.strerror)
+        exit(1)
 
-    elif cmd == '-viewsub':
-        print(cmd, ':')
-        res = getAllSubAccounts(p['uri'], p['apiKey'])
-        for i in res['results']:
-            print('id='+str(i['id']),'\tname="'+i['name']+'"','status='+i['status'],'compliance_status='+i['compliance_status'])
+if cmd == '-createsub':
+    for r in f:
+        # ONLY column is the subaccount name
+        subAccountName = r[0].strip()
+        res = createSubAccount(p['uri'], p['apiKey'], subAccountName)
+        print(json.dumps(res))
 
-    elif cmd == '-createdomains':
-        print(cmd,':')
-        try:
-            # Get the list of subaccounts
-            f = csv.reader(open(sys.argv[2]))
-            for r in f:
-                # First column is the subaccount ID, next column is sending domain, next is (optional) tracking domain
-                subID = r[0].strip()
-                sd = r[1].strip()                            # strip whitespace
-                try:
-                    td = r[2].strip()                        # strip whitespace.  If non-existent, catch the error
-                except IndexError:
-                    td = ''
+elif(cmd == '-deletesub'):
+    print('DeleteSub : sorry this is currently unsupported in SparkPost.')
 
-                print('Create subaccount=', subID, 'domain=', sd, 'tracking domain=', td, ': ',end='')
-                res = createSendingDomain(p['uri'], p['apiKey'], subID, sd, td)
-                if(res):
-                    print(json.dumps(res['results']['message']) )
-            exit(0)
+elif cmd == '-viewsub':
+    res = getAllSubAccounts(p['uri'], p['apiKey'])
+    for i in res['results']:
+        print('id='+str(i['id']),'\tname="'+i['name']+'"','status='+i['status'],'compliance_status='+i['compliance_status'])
 
-        except FileNotFoundError as Err:
-            print('Error opening file', Err.filename, ':', Err.strerror)
-            exit(1)
-
-    elif cmd == '-deletedomains':
-        print(cmd,':')
-        try:
-            # Get the list of subaccounts
-            f = csv.reader(open(sys.argv[2]))
-            for r in f:
-                # First column is the subaccount ID, next column is sending domain(s)
-                subID = r[0].strip()
-                sd = r[1].strip()                            # strip whitespace
-                print('Delete subaccount=', subID, 'domain=', sd, ': ',end='')
-                res = deleteSendingDomain(p['uri'], p['apiKey'], subID, sd)
-                if(res):
-                    print('done')
-            exit(0)
-
-        except FileNotFoundError as Err:
-            print('Error opening file', Err.filename, ':', Err.strerror)
-            exit(1)
-
-    elif cmd == '-viewdomains':
-        print(cmd,':')
-        try:
-            # Get the list of subaccounts
-            f = csv.reader(open(sys.argv[2]))
-            if len(sys.argv) >= 4:                                      # Param is optional
-                dnsFname = sys.argv[3]
-                dnsFile = open(dnsFname, 'w')
-                print('Writing DNS entries in', sys.argv[3])
+elif cmd == '-createdomains':
+    for r in f:
+        if f.line_num == 1:                         # Check if header row present
+            if 'X-MSYS-SUBACCOUNT' in r:
+                hdr = r
+                continue
             else:
-                dnsFname = ''
+                hdr = domfileHdr                    # assume default header row
+        thisR = {}
+        for i,v in enumerate(r):                    # process this row as data
+            if v:
+                thisR[hdr[i]] = v.strip()
+        print('Subaccount=', thisR.get('X-MSYS-SUBACCOUNT'), 'domain=', thisR.get('domain'), 'tracking domain=', thisR.get('tracking_domain'), ': ',end='',flush=True)
+        res = createSendingDomain(p['uri'], p['apiKey'], **thisR)
+        if(res):
+            print(json.dumps(res['results']['message']) )
 
-            for r in f:
-                # First column is the subaccount ID, second column is tracking domain
-                subID = r[0].strip()
-                sd = r[1].strip()                            # strip whitespace
-                print('Subaccount=', subID, 'domain=', sd,': ',end='')
-                res = getSendingDomain(p['uri'], p['apiKey'], sd)
-                if res:
-                    if res['results']['subaccount_id'] == int(subID):
-                        print('Domain subaccount set correctly:', res)
-                        # Output data in format specifically for BIND file entries
-                        if dnsFname:
-                            dk = res['results']['dkim']
-                            dnsFile.write(dk['selector'] + '._domainkey.' + sd + '.' + ' IN TXT "v=DKIM1\; h=sha256\; k=rsa\; s=email\; p=' + dk['public'] + '"' + '\n')
-                    else:
-                        print('subaccount mismatch:', res)
-            if dnsFname:
-                dnsFile.close()
-            exit(0)
-
-        except FileNotFoundError as Err:
-            print('Error opening file', Err.filename, ':', Err.strerror)
-            exit(1)
-
-    elif cmd == '-createtrack':
-        print(cmd,':')
-        try:
-            # Get the list of subaccount / tracking-domain pairs
-            f = csv.reader(open(sys.argv[2]))
-            for r in f:
-                # First column is the subaccount ID, next column is tracking domain
-                subID = r[0].strip()
-                td = r[1].strip()                            # strip whitespace
-
-                print('Create tracking domain=', td, 'on subaccount', subID, ': ',end='')
-                res = createTrackingDomain(p['uri'], p['apiKey'], subID, td)
-                if(res):
-                    print(json.dumps(res) )
-            exit(0)
-
-        except FileNotFoundError as Err:
-            print('Error opening file', Err.filename, ':', Err.strerror)
-            exit(1)
-
-    elif cmd == '-deletetrack':
-        print(cmd,':')
-        try:
-            # Get the list of subaccount / tracking-domain pairs
-            f = csv.reader(open(sys.argv[2]))
-            for r in f:
-                # First column is the subaccount ID, next column is tracking domain
-                subID = r[0].strip()
-                td = r[1].strip()                            # strip whitespace
-
-                print('Delete tracking domain=', td, 'on subaccount', subID, ': ',end='')
-                res = deleteTrackingDomain(p['uri'], p['apiKey'], subID, td)
-                if(res):
-                    print('done')
-            exit(0)
-
-        except FileNotFoundError as Err:
-            print('Error opening file', Err.filename, ':', Err.strerror)
-            exit(1)
-
-    elif cmd == '-viewtrack':
-        print(cmd, ':')
-        try:
-            # Get the list of subaccount / tracking-domain pairs
-            f = csv.reader(open(sys.argv[2]))
-            if len(sys.argv) >= 4:  # Param is optional
-                dnsFname = sys.argv[3]
-                dnsFile = open(dnsFname, 'w')
-                print('Writing DNS entries in', sys.argv[3])
+elif cmd == '-deletedomains':
+    for r in f:
+        if f.line_num == 1:                         # Check if header row present
+            if 'X-MSYS-SUBACCOUNT' in r:
+                hdr = r
+                continue
             else:
-                dnsFname = ''
+                hdr = domfileHdr                    # assume default header row
+        thisR = {}
+        for i, v in enumerate(r):                   # process this row as data
+            if v:
+                thisR[hdr[i]] = v.strip()
+        print('Subaccount=', thisR.get('X-MSYS-SUBACCOUNT'), 'domain=', thisR.get('domain'), ': ',end='',flush=True)
+        res = deleteSendingDomain(p['uri'], p['apiKey'], **thisR)
+        if(res):
+            print('done')
 
-            for r in f:
-                # First column is the subaccount ID, remaining column is tracking domain
-                subID = r[0].strip()
-                td = r[1].strip()  # strip whitespace
-                print('Subaccount=', subID, 'tracking domain=', td, ': ', end='')
-                res = getTrackingDomain(p['uri'], p['apiKey'], subID, td)
-                print(res)
-                if res:
-                    # Output data in format specifically for BIND file entries
-                    if dnsFname:
-                        trk = res['results']['domain']
-                        dnsFile.write(trk+' CNAME '+ 'spgo.io' + '\n')
+elif cmd == '-viewdomains':
+    for r in f:
+        if f.line_num == 1:                         # Check if header row present
+            if 'X-MSYS-SUBACCOUNT' in r:
+                hdr = r
+                continue
+            else:
+                hdr = domfileHdr                    # assume default header row
+        thisR = {}
+        for i, v in enumerate(r):                   # process this row as data
+            if v:
+                thisR[hdr[i]] = v.strip()
+        print('Subaccount=', thisR.get('X-MSYS-SUBACCOUNT'), 'domain=', thisR.get('domain'), ': ',end='',flush=True)
+        res = getSendingDomain(p['uri'], p['apiKey'], **thisR)
+        if res:
+            if res['results']['subaccount_id'] == int(thisR.get('X-MSYS-SUBACCOUNT')):
+                print('Domain subaccount set correctly', res)
+                # Output data in format specifically for BIND file entries
+                if dnsFname:
+                    dk = res['results']['dkim']
+                    dnsFile.write(dk['selector'] + '._domainkey.' + thisR.get('domain') + '.' + ' IN TXT "v=DKIM1\; h=sha256\; k=rsa\; s=email\; p=' + dk['public'] + '"' + '\n')
+            else:
+                print('subaccount mismatch:', res)
 
+elif cmd == '-createtrack':
+    for r in f:
+        if f.line_num == 1:                         # Check if header row present
+            if 'X-MSYS-SUBACCOUNT' in r:
+                hdr = r
+                continue
+            else:
+                hdr = trkfileHdr                    # assume default header row
+        thisR = {}
+        for i, v in enumerate(r):                   # process this row as data
+            if v:
+                thisR[hdr[i]] = v.strip()
+        print('Subaccount=', thisR.get('X-MSYS-SUBACCOUNT'), 'tracking domain=', thisR.get('tracking_domain'), ': ', end='', flush=True)
+        res = createTrackingDomain(p['uri'], p['apiKey'], **thisR)
+        if res:
+            print(json.dumps(res) )
+
+elif cmd == '-deletetrack':
+    for r in f:
+        if f.line_num == 1:                         # Check if header row present
+            if 'X-MSYS-SUBACCOUNT' in r:
+                hdr = r
+                continue
+            else:
+                hdr = trkfileHdr                    # assume default header row
+        thisR = {}
+        for i, v in enumerate(r):                   # process this row as data
+            if v:
+                thisR[hdr[i]] = v.strip()
+        print('Subaccount=', thisR.get('X-MSYS-SUBACCOUNT'), 'tracking domain=', thisR.get('tracking_domain'), ': ', end='', flush=True)
+        res = deleteTrackingDomain(p['uri'], p['apiKey'], **thisR)
+        if res:
+            print('done')
+
+elif cmd == '-viewtrack':
+    for r in f:
+        if f.line_num == 1:                         # Check if header row present
+            if 'X-MSYS-SUBACCOUNT' in r:
+                hdr = r
+                continue
+            else:
+                hdr = trkfileHdr                    # assume default header row
+        thisR = {}
+        for i, v in enumerate(r):                   # process this row as data
+            if v:
+                thisR[hdr[i]] = v.strip()
+        print('Subaccount=', thisR.get('X-MSYS-SUBACCOUNT'), 'tracking domain=', thisR.get('tracking_domain'), ': ', end='', flush=True)
+
+        res = getTrackingDomain(p['uri'], p['apiKey'], **thisR)
+        print(res)
+        if res:
+            # Output data in format specifically for BIND file entries
             if dnsFname:
-                dnsFile.close()
-            exit(0)
+                trk = res['results']['domain']
+                dnsFile.write(trk+' CNAME '+ 'spgo.io' + '\n')
 
-        except FileNotFoundError as Err:
-            print('Error opening file', Err.filename, ':', Err.strerror)
-            exit(1)
-
-    else:
-        printHelp()
-        exit(0)
 else:
     printHelp()
-    exit(0)
+
+# Tidy up
+if dnsFname:
+    dnsFile.close()
+exit(0)

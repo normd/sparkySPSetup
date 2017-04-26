@@ -1,5 +1,0 @@
-trk.trans01.thetucks.com CNAME spgo.io
-trk.trans02.thetucks.com CNAME spgo.io
-trk.trans03.thetucks.com CNAME spgo.io
-trk.trans04.thetucks.com CNAME spgo.io
-trk.trans05.thetucks.com CNAME spgo.io

@@ -44,24 +44,28 @@ MANDATORY PARAMETERS
 
          -deletesub               ** currently unsupported in Sparkpost
 
-         -viewsub                 View the subaccounts
+         -viewsub subfile_in      View the subaccounts (actually shows all of them - not just those in file)
 
          -createdomains domfile_in
-             domfile_in           .csv format file, each line containing subaccount_id, domain[, tracking_domain]
+             domfile_in           .csv format file (may have header on line 1) of format:
+                                  X-MSYS-SUBACCOUNT,domain,tracking_domain,signing_domain,private,public,selector,headers
+                                      tracking_domain onwards are optional parameters.
 
          -deletedomains domfile_in
 
          -viewdomains domfile_in [bindfile_out]
                                   Check domains are set up to match the domfile_in and display them.
-             bindfile_out         Optional output text file, containing DNS BIND entries for the sending domains.
+             bindfile_out         Optional output file, will be written with DNS BIND entries for the sending domains.
 
          -createtrack trkfile_in  Create subaccount-linked tracking domains
-             trkfile_in           .csv format file, each line containing subaccount_id, tracking_domain
+             trkfile_in           .csv format file (may have header on line 1) of format:
+                                  X-MSYS-SUBACCOUNT,tracking_domain,port,secure,default
+                                      port, secure (true/false) and default (true/false) are optional parameters.
 
          -deletetrack trkfile_in
 
-         -viewtrack trkfile_in [cnamefile_out
-             cnamefile_out         Optional output text file, containing DNS BIND entries for the tracking domains.
+         -viewtrack trkfile_in [cnamefile_out]
+             cnamefile_out        Optional output file, will be written with DNS BIND entries for the tracking domains.
 
 USAGE
     The first step is to create the subaccounts, if you do not already have them set up.
@@ -81,7 +85,7 @@ USAGE
 
 ## Example output
 
-Start with a simple input file listing the required subaccounts, for example `subacc.csv`:
+Start with a simple input file listing the required subaccounts, for example `subacc.csv`.  This DOES NOT take a header row.
 ```
 service_provider1
 service_provider2
@@ -112,38 +116,40 @@ id=4    name="service_provider4" status=active compliance_status=active
 id=5    name="service_provider5" status=active compliance_status=active
 ```
 
-Create the `domfile_in` file, for example `domains-list.csv`.  In this example, no tracking-domains are specified.
+Create the `domfile_in` file, for example `domains-list-with-tracking.csv`.  In this example, some tracking-domains are specified (they are optional).
+Line 1 can contain a descriptive header.
 ```
+X-MSYS-SUBACCOUNT,domain,tracking_domain
 1,sp01.1.junkdomain.com
-1,sp01.2.junkdomain.com
+1,sp01.2.junkdomain.com,trk.trans01.thetucks.com
 2,sp02.1.junkdomain.com
-2,sp02.2.junkdomain.com
+2,sp02.2.junkdomain.com,trk.trans02.thetucks.com
 3,sp03.1.junkdomain.com
-3,sp03.2.junkdomain.com
+3,sp03.2.junkdomain.com,trk.trans03.thetucks.com
 4,sp04.1.junkdomain.com
-4,sp04.2.junkdomain.com
+4,sp04.2.junkdomain.com,trk.trans04.thetucks.com
 5,sp05.1.junkdomain.com
-5,sp05.2.junkdomain.com
+5,sp05.2.junkdomain.com,trk.trans05.thetucks.com
 5,sp05.3.junkdomain.com
-5,sp05.4.junkdomain.com
+5,sp05.4.junkdomain.com,trk.trans05.thetucks.com
 ```
 
 Create those domains:
 ```
-$ ./sparkySPSetup.py -createdomains domains-list.csv
+$ ./sparkySPSetup.py -createdomains domains-list-with-tracking.csv 
 -createdomains :
-Create subaccount= 1 domain= sp01.1.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 1 domain= sp01.2.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 2 domain= sp02.1.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 2 domain= sp02.2.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 3 domain= sp03.1.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 3 domain= sp03.2.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 4 domain= sp04.1.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 4 domain= sp04.2.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 5 domain= sp05.1.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 5 domain= sp05.2.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 5 domain= sp05.3.junkdomain.com tracking domain=  : "Successfully Created domain."
-Create subaccount= 5 domain= sp05.4.junkdomain.com tracking domain=  : "Successfully Created domain."
+Subaccount= 1 domain= sp01.1.junkdomain.com tracking domain= None : "Successfully Created domain."
+Subaccount= 1 domain= sp01.2.junkdomain.com tracking domain= trk.trans01.thetucks.com : "Successfully Created domain."
+Subaccount= 2 domain= sp02.1.junkdomain.com tracking domain= None : "Successfully Created domain."
+Subaccount= 2 domain= sp02.2.junkdomain.com tracking domain= trk.trans02.thetucks.com : "Successfully Created domain."
+Subaccount= 3 domain= sp03.1.junkdomain.com tracking domain= None : "Successfully Created domain."
+Subaccount= 3 domain= sp03.2.junkdomain.com tracking domain= trk.trans03.thetucks.com : "Successfully Created domain."
+Subaccount= 4 domain= sp04.1.junkdomain.com tracking domain= None : "Successfully Created domain."
+Subaccount= 4 domain= sp04.2.junkdomain.com tracking domain= trk.trans04.thetucks.com : "Successfully Created domain."
+Subaccount= 5 domain= sp05.1.junkdomain.com tracking domain= None : "Successfully Created domain."
+Subaccount= 5 domain= sp05.2.junkdomain.com tracking domain= trk.trans05.thetucks.com : "Successfully Created domain."
+Subaccount= 5 domain= sp05.3.junkdomain.com tracking domain= None : "Successfully Created domain."
+Subaccount= 5 domain= sp05.4.junkdomain.com tracking domain= trk.trans05.thetucks.com : "Successfully Created domain."
 ```
 
 View and check the domains, writing a new BIND file from info pulled back from SparkPost:
@@ -184,20 +190,20 @@ scph0317._domainkey.sp05.4.junkdomain.com. IN TXT "v=DKIM1\; h=sha256\; k=rsa\; 
 
 Delete those domains:
 ```
-$ ./sparkySPSetup.py -deletedomains domains-list.csv
+$ ./sparkySPSetup.py -deletedomains domains-list-with-tracking.csv 
 -deletedomains :
-Delete subaccount= 1 domain= sp01.1.junkdomain.com : done
-Delete subaccount= 1 domain= sp01.2.junkdomain.com : done
-Delete subaccount= 2 domain= sp02.1.junkdomain.com : done
-Delete subaccount= 2 domain= sp02.2.junkdomain.com : done
-Delete subaccount= 3 domain= sp03.1.junkdomain.com : done
-Delete subaccount= 3 domain= sp03.2.junkdomain.com : done
-Delete subaccount= 4 domain= sp04.1.junkdomain.com : done
-Delete subaccount= 4 domain= sp04.2.junkdomain.com : done
-Delete subaccount= 5 domain= sp05.1.junkdomain.com : done
-Delete subaccount= 5 domain= sp05.2.junkdomain.com : done
-Delete subaccount= 5 domain= sp05.3.junkdomain.com : done
-Delete subaccount= 5 domain= sp05.4.junkdomain.com : done
+Subaccount= 1 domain= sp01.1.junkdomain.com : done
+Subaccount= 1 domain= sp01.2.junkdomain.com : done
+Subaccount= 2 domain= sp02.1.junkdomain.com : done
+Subaccount= 2 domain= sp02.2.junkdomain.com : done
+Subaccount= 3 domain= sp03.1.junkdomain.com : done
+Subaccount= 3 domain= sp03.2.junkdomain.com : done
+Subaccount= 4 domain= sp04.1.junkdomain.com : done
+Subaccount= 4 domain= sp04.2.junkdomain.com : done
+Subaccount= 5 domain= sp05.1.junkdomain.com : done
+Subaccount= 5 domain= sp05.2.junkdomain.com : done
+Subaccount= 5 domain= sp05.3.junkdomain.com : done
+Subaccount= 5 domain= sp05.4.junkdomain.com : done
 ```
 
 Create tracking domains:
@@ -243,6 +249,32 @@ Delete tracking domain= trk.trans02.thetucks.com on subaccount 2 : done
 Delete tracking domain= trk.trans03.thetucks.com on subaccount 3 : done
 Delete tracking domain= trk.trans04.thetucks.com on subaccount 4 : done
 Delete tracking domain= trk.trans05.thetucks.com on subaccount 5 : done
+```
+
+## Option: Supply your own DKIM private/public keys
+You can provide your own DKIM keys in domfile_in.  Private and public parts are required.  Keys should be enclosed in quotes and be all on one line.
+
+The following fields may optionally be left blank, defaults will be applied internally by SparkPost:
+- signing_domain
+- selector
+- headers
+
+```
+X-MSYS-SUBACCOUNT,domain,tracking_domain,signing_domain,private,public,selector,headers
+1,sp01.junkdomain.com,trk.trans01.thetucks.com
+2,sp02.junkdomain.com,,,"MIICXAIBAAKBgQDvbFRUUiY6jZ4j6OApYP5QewBs6dxsEenPsg7dfaT/1aE2nFU60Ug2yb2Ci+gM/4zQs/8hixC/1FZZh2U4dXaN1PqLJ4CkchjxsrkI27QQDr0eL+uCOf7AIHNqdKEX9FDRW4gN8i0lj3VJPkxMdsyDEGpKaOqH79WYae+H+FtqRwIDAQABAoGAf1DZ3yT4EzbvmyTg3uAnHGDsLv6FKiq0bK/A2+NOdIUDf2jOocJcZlYNIniHYzIZjXnJ9+pdc8TUTjODjexYp7gA3tfHVUP0khurgeAr8R7mrd58Z1QyOqVkFyEXqfD7WYnPTH0089JOowO6nVBuL/O8RLa5AYWxj2Awb/EHw1ECQQD6q+U3HvQcitCsYmlqfldKk524IdqioPuXN7pTF5htasZMhJxR37xovrbOenhyd9rXqhVhwbWuNRHm/sM55ZT7AkEA9IM5FarcE30SWJ0hfnpHE7QcXa3JQoaiJV6P2FLHfvwt9Qwf1a5LOuGbxyYbGgEeRMvW6+EcMZc0AXNgFN0GJQJBAMMJ3F73BpjuqU53g+4IP4MXODB8ptDC0P7nrWHZihAYdBI1XCuYGdCmEza0s+Lcvrnu7JQTVHkncbZ5owz5ROECQFt1oiqqqHtZsz0WOWsXzfJe0qVv1fJebdRQlLmz7Q9gwMgCav4Anf8+WIibhlOpy2qsXI4KvAMIrdlFENF9A0kCQGPkOGBQvgmuW9UjjIP42Mvids3pvQUzfWJaAcCD3aXcwf7fpOFsY2Ps4r/+AUmiN3jXu8OqrvKCATCizD3ngGs=","MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDvbFRUUiY6jZ4j6OApYP5QewBs6dxsEenPsg7dfaT/1aE2nFU60Ug2yb2Ci+gM/4zQs/8hixC/1FZZh2U4dXaN1PqLJ4CkchjxsrkI27QQDr0eL+uCOf7AIHNqdKEX9FDRW4gN8i0lj3VJPkxMdsyDEGpKaOqH79WYae+H+FtqRwIDAQAB",sparky123
+3,sp03.junkdomain.com,trk.trans03.thetucks.com,,"MIICXAIBAAKBgQDvbFRUUiY6jZ4j6OApYP5QewBs6dxsEenPsg7dfaT/1aE2nFU60Ug2yb2Ci+gM/4zQs/8hixC/1FZZh2U4dXaN1PqLJ4CkchjxsrkI27QQDr0eL+uCOf7AIHNqdKEX9FDRW4gN8i0lj3VJPkxMdsyDEGpKaOqH79WYae+H+FtqRwIDAQABAoGAf1DZ3yT4EzbvmyTg3uAnHGDsLv6FKiq0bK/A2+NOdIUDf2jOocJcZlYNIniHYzIZjXnJ9+pdc8TUTjODjexYp7gA3tfHVUP0khurgeAr8R7mrd58Z1QyOqVkFyEXqfD7WYnPTH0089JOowO6nVBuL/O8RLa5AYWxj2Awb/EHw1ECQQD6q+U3HvQcitCsYmlqfldKk524IdqioPuXN7pTF5htasZMhJxR37xovrbOenhyd9rXqhVhwbWuNRHm/sM55ZT7AkEA9IM5FarcE30SWJ0hfnpHE7QcXa3JQoaiJV6P2FLHfvwt9Qwf1a5LOuGbxyYbGgEeRMvW6+EcMZc0AXNgFN0GJQJBAMMJ3F73BpjuqU53g+4IP4MXODB8ptDC0P7nrWHZihAYdBI1XCuYGdCmEza0s+Lcvrnu7JQTVHkncbZ5owz5ROECQFt1oiqqqHtZsz0WOWsXzfJe0qVv1fJebdRQlLmz7Q9gwMgCav4Anf8+WIibhlOpy2qsXI4KvAMIrdlFENF9A0kCQGPkOGBQvgmuW9UjjIP42Mvids3pvQUzfWJaAcCD3aXcwf7fpOFsY2Ps4r/+AUmiN3jXu8OqrvKCATCizD3ngGs=","MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDvbFRUUiY6jZ4j6OApYP5QewBs6dxsEenPsg7dfaT/1aE2nFU60Ug2yb2Ci+gM/4zQs/8hixC/1FZZh2U4dXaN1PqLJ4CkchjxsrkI27QQDr0eL+uCOf7AIHNqdKEX9FDRW4gN8i0lj3VJPkxMdsyDEGpKaOqH79WYae+H+FtqRwIDAQAB",sparky123,ignore
+```
+
+## Option: Tracking domains with port number, secure etc.
+As described in the API docs, Enterprise customers may set more attributes on tracking domains:
+```
+X-MSYS-SUBACCOUNT,tracking_domain,port,secure,default
+1,trk.trans01.thetucks.com,80,false
+2,trk.trans02.thetucks.com,443,true
+3,trk.trans03.thetucks.com,8080,false
+4,trk.trans04.thetucks.com,443,true
+5,trk.trans05.thetucks.com,443,true,false
 ```
 
 ## See Also

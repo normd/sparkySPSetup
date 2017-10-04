@@ -15,8 +15,8 @@ Set up a sparkpost.ini file as follows.
   
 ```
 [SparkPost]
-# SparkPost Enterprise EU values
 Authorization = "##myAPIkey##"
+# Next line only needed for SparkPost Enterprise
 Host = "demo.sparkpostelite.com"
 ```
 The surrounding quotes are needed.
